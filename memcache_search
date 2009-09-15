@@ -1,0 +1,58 @@
+#!/usr/bin/ruby -w
+require 'net/telnet'
+require 'optparse'
+
+options={}
+OptionParser.new do |opts|
+  opts.on("-h","--hostname HOSTNAME","specify hostname") do |v|
+    options[:hostname]=v
+  end
+  opts.on("-p","--port PORT","specify port") do |v|
+    options[:port]=v
+  end
+end.parse!
+
+$port=options[:port] || '11211' 
+$host=options[:hostname] || 'localhost'
+USAGE="
+usage:
+#{$0} [-h HOSTNAME] [-p PORT] SEARCH_STRING"
+unless ARGV.size==1
+  puts USAGE
+  exit
+end
+
+reg=Regexp.new(/#{ARGV.first}/m)
+
+
+
+
+@connector=Net::Telnet::new("Host" => $host,"Port"=> $port)
+@connector.print("stats items\n");
+response=@connector.waitfor("Match"=>/END$/)
+keys=[]
+items=[]
+bins=[]
+response.split("\n").each do |line|
+  items.push($1) if(line=~/STAT (.*)$/)
+  bins={}
+  items.each do |line|
+    bins[$1]=$2 if line=~/items:(\d+):number (\d+)/
+  end
+end
+bins.each_pair { |bin,count|
+  @connector.print "stats cachedump #{bin} #{count}\n"
+  response=@connector.waitfor("Match"=>/END$/)
+  response.split("\n").each do |item|
+    keys.push($1) if item=~/ITEM (\S+) /
+  end
+}
+#puts "DONE GETTING KEYS"
+#keys.each {|x| print("#{x}\n")}
+require 'rubygems'
+require 'memcache'
+mc=MemCache.new("#{$host}:#{$port}")
+keys.each do |line|
+	out= mc.get(line.chomp,true)
+	puts line if reg.match(out)
+end
