@@ -40,15 +40,13 @@ response.split("\n").each do |line|
     bins[$1]=$2 if line=~/items:(\d+):number (\d+)/
   end
 end
-bins.each_pair { |bin,count|
+bins.each_pair do |bin,count|
   @connector.print "stats cachedump #{bin} #{count}\n"
   response=@connector.waitfor("Match"=>/END$/)
   response.split("\n").each do |item|
     keys.push($1) if item=~/ITEM (\S+) /
   end
-}
-#puts "DONE GETTING KEYS"
-#keys.each {|x| print("#{x}\n")}
+end
 require 'rubygems'
 require 'memcache'
 mc=MemCache.new("#{$host}:#{$port}")
