@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+require 'optparse'
+
+def commas n
+  x=n.to_s.reverse.
+  gsub(/^(\d\d\d)(\d)/,'\1,\2').
+  gsub(/,(\d\d\d)(\d)/,',\1,\2').reverse
+end
+
+options={:totals => true, :show_bins => true, :bin_size => 500_000, :worst_offender => false, :offender_size => 20, :show_size=> true}
+OptionParser.new do |opts|
+  opts.on("-wo","--worst-offender-only", "Only show the session keys, not size of values") do |v|
+    options[:show_size]=false
+    options[:worst_offender]=true
+    options[:show_bins]=false
+    options[:totals]=false
+  end
+
+  opts.on("-t","--totals","get total statistics") do 
+    options[:totals]=true
+  end
+  opts.on("-b","--bin-size BINSIZE","size of bins for stats") do |v|
+    options[:bin_size]=v.to_i
+    options[:show_bins]=true
+  end
+  opts.on("-s","--offender_size OFFENDERSIZE","how many of the largest sessions list to show") do |v|
+    options[:offender_size]=v.to_i
+    options[:worst_offender]=true
+  end
+end.parse!
+
+
+@data={}
+@total=0
+total_num=0
+bin_size=options[:bin_size]
+while(line=STDIN.gets) do 
+  if line=~/^(\d+):(.*)$/
+    total_num+=1
+    @total=@total + $1.to_i
+    @data[$2]=$1.to_i
+  end
+end
+data=@data.values.sort
+min=data.first
+data.reject!{|e|e==min}
+if options[:totals]
+  puts "TOTAL NUM OF KEYS = " + commas(total_num)
+  puts "TOTAL SIZE OF VALUES = " + commas(@total)
+  puts "min (ignored for rest of calculations) = " + commas(min)
+end
+bins={}
+data.each{|d|
+  bin=d.to_i/bin_size
+  bins[bin]||={:total => 0, :data => []}
+  bins[bin][:total]=bins[bin][:total] + d
+  bins[bin][:data] << d
+}
+if options[:show_bins]
+bins.keys.sort.each do |k|v=bins[k]
+  puts "BIN for #{commas(bin_size * k)} <= VALUE < #{commas((bin_size * k) +bin_size)}"
+  puts "Total Elements: #{v[:data].size}"
+  puts "Total size = #{commas(v[:data].inject(0){|s,e|s+e})}"
+  puts "\n\n"
+end
+end
+if options[:worst_offender]
+puts "WORST OFFENDERS:" if options[:show_size]
+sorted_keys=@data.keys.sort_by{|x|@data[x]}.reverse
+total_keys=sorted_keys.size
+options[:offender_size].times do |i|
+  k = sorted_keys[i]
+  puts k 
+  puts "\t" + commas(@data[k]) + " bytes\n\n"  if options[:show_size]
+end
+end

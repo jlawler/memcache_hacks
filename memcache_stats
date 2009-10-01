@@ -1,0 +1,96 @@
+#!/usr/bin/ruby -w
+require 'net/telnet'
+require 'optparse'
+require 'rubygems'
+require 'memcache'
+require 'pp'
+
+def debug *args
+  f=args.shift
+  STDERR.puts f
+  args.each{|a|STDERR.puts "\t" + f.to_s}
+  f
+end
+
+options={}
+OptionParser.new do |opts|
+  opts.on("-h","--hostname HOSTNAME","specify hostname") do |v|
+    options[:hostname]=v
+  end
+  opts.on("-p","--port PORT","specify port") do |v|
+    options[:port]=v
+  end
+  opts.on("--i-know-what-im-doing","sanity check") do 
+    options[:sane]='questionable'
+  end
+end.parse!
+
+$port=options[:port] || '11211' 
+$host=options[:hostname] || 'localhost'
+USAGE="THIS IS A FREAKING DANGEROUS COMMAND, AND YOU MESSED UP IT'S ARGUMENTS!
+
+DANGER WILL ROBINSON, DANGER.  READ THIS:
+
+Memcache uses an LRU algorithm to decide what to evict.  This command will 
+retrieve every key in memcache, thus totally screwing up it's ability to 
+decide what to evict.  In essence, assume every time you run this, there's
+a chance you're going to accidentally log someone out.  This is bad.
+
+The output of this command should be piped to a file.  Then you should
+cat that file to the \"memcache_report\" command.  The reason this is done in two
+steps is if you want to tweak the report, you SHOULDN'T GET THE DATA AGAIN.
+As I describe above, every time you get the data, you kill a kitten.  In order
+to force you to read this, the you must pass the \"i know what im doing\"
+argument to this command.  Look at the source for details.
+
+usage:
+#{$0} [-h HOSTNAME] [-p PORT] "
+unless ARGV.size==0 and options[:sane]
+  puts USAGE
+  exit
+end
+
+reg=Regexp.new(/#{ARGV.first}/m)
+
+
+
+
+@connector=Net::Telnet::new("Host" => $host,"Port"=> $port)
+@connector.print("stats\n");
+stats=@connector.waitfor("Match"=>/END$/).split("\n").inject({}){|s,l|
+  next(s) unless l=~/^STAT/
+  k,v=l.sub(/^STAT /,'').split(/\s/)
+  s.merge({k => v})
+}
+@connector.print("stats items\n");
+response=@connector.waitfor("Match"=>/END$/)
+keys=[]
+items=[]
+bins=[]
+response.split("\n").each do |line|
+  items.push($1) if(line=~/STAT (.*)$/)
+  bins={}
+  items.each do |line|
+    bins[$1]=$2 if line=~/items:(\d+):number (\d+)/
+  end
+end
+bins.each_pair { |bin,count|
+  @connector.print "stats cachedump #{bin} #{count}\n"
+  #STDERR.puts "stats cachedump #{bin} #{count}\n"
+  response=@connector.waitfor("Match"=>/END$/)
+  response.split("\n").each do |item|
+    keys.push($1) if item=~/ITEM (\S+) /
+  end
+}
+if keys.size == 0
+  STDERR.puts "NO KEYS IN MEMCACHE!"
+  exit(1)
+end
+mc=MemCache.new("#{$host}:#{$port}")
+sizes=[]
+keys.each do |line|
+	out= mc.get(line.chomp,true)
+  sizes << out.length
+end
+sizes.sort!
+pp sizes.max
