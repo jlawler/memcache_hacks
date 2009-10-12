@@ -40,6 +40,13 @@ while(line=STDIN.gets) do
     @total=@total + $1.to_i
     @data[$2]=$1.to_i
   end
+  if line=~/^(\S+) (\d+)$/
+    total_num+=1
+    @total=@total + 1
+    @data[$2]||=0
+    @data[$2]+=1
+  end
+
 end
 data=@data.values.sort
 min=data.first

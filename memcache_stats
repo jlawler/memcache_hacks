@@ -2,7 +2,6 @@
 require 'net/telnet'
 require 'optparse'
 require 'rubygems'
-require 'memcache'
 require 'pp'
 
 def debug *args
@@ -45,7 +44,7 @@ argument to this command.  Look at the source for details.
 
 usage:
 #{$0} [-h HOSTNAME] [-p PORT] "
-unless ARGV.size==0 and options[:sane]
+unless ARGV.size==0
   puts USAGE
   exit
 end
@@ -67,6 +66,7 @@ response=@connector.waitfor("Match"=>/END$/)
 keys=[]
 items=[]
 bins=[]
+sizes={}
 response.split("\n").each do |line|
   items.push($1) if(line=~/STAT (.*)$/)
   bins={}
@@ -74,23 +74,39 @@ response.split("\n").each do |line|
     bins[$1]=$2 if line=~/items:(\d+):number (\d+)/
   end
 end
+sizes_from_cachedump=false
 bins.each_pair { |bin,count|
   @connector.print "stats cachedump #{bin} #{count}\n"
   #STDERR.puts "stats cachedump #{bin} #{count}\n"
   response=@connector.waitfor("Match"=>/END$/)
   response.split("\n").each do |item|
-    keys.push($1) if item=~/ITEM (\S+) /
+    if item=~/ITEM (\S+) /
+      keys.push($1) 
+      if item=~/ITEM (\S+) \[(\d+) b;/
+        sizes_from_cachedump=true
+        sizes[$1]=$2.to_i
+      end
+    end
   end
 }
 if keys.size == 0
   STDERR.puts "NO KEYS IN MEMCACHE!"
   exit(1)
 end
-mc=MemCache.new("#{$host}:#{$port}")
-sizes=[]
-keys.each do |line|
-	out= mc.get(line.chomp,true)
-  sizes << out.length
+unless  sizes_from_cachedump
+unless ARGV.size==0 and options[:sane]
+  puts USAGE
+  exit
 end
-sizes.sort!
-pp sizes.max
+
+STDERR.puts "uh-oh, have to iterate through all keys!"
+require 'memcache'
+mc=MemCache.new("#{$host}:#{$port}")
+keys.each do |line|
+#	out= mc.get(line.chomp,true)
+ # sizes << out.length
+end
+end
+sizes.each_pair{|k,v|puts [k,v].join(' ')}
+#izes.sort!
+#pp sizes.max
