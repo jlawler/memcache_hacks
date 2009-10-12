@@ -10,14 +10,29 @@ OptionParser.new do |opts|
   opts.on("-p","--port PORT","specify port") do |v|
     options[:port]=v
   end
+  opts.on("--i-know-what-im-doing","sanity check") do 
+    options[:sane]='questionable'
+  end
+
 end.parse!
 
 $port=options[:port] || '11211' 
 $host=options[:hostname] || 'localhost'
-USAGE="
+USAGE="THIS IS A FREAKING DANGEROUS COMMAND, AND YOU MESSED UP IT'S ARGUMENTS!
+
+DANGER WILL ROBINSON, DANGER.  READ THIS:
+
+Memcache uses an LRU algorithm to decide what to evict.  This command will 
+retrieve every key in memcache, thus totally screwing up it's ability to 
+decide what to evict.  In essence, assume every time you run this, there's
+a chance you're going to accidentally log someone out.  This is bad.
+As I describe above, every time you get the data, you kill a kitten.  In order
+to force you to read this, the you must pass the \"i know what im doing\"
+argument to this command.  Look at the source for details.
+
 usage:
 #{$0} [-h HOSTNAME] [-p PORT] SEARCH_STRING"
-unless ARGV.size==1
+unless ARGV.size==1 and options[:sane]
   puts USAGE
   exit
 end
