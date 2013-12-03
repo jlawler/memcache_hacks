@@ -102,13 +102,21 @@ end
 STDERR.puts "uh-oh, have to iterate through all keys!"
 require 'memcache'
 mc=Memcache.new(:server => "#{$host}:#{$port}")
+mc_dest=Memcache.new(:server => "medusa.bay.ru:#{$port}")
 @sa=[]
+@di=0
 keys.each do |line|
-	out= mc.get(line.chomp, raw: true)
-@sa << out.length if out
+	k = line.chomp
+	out= mc.get(k, raw: true)
+	dirty = (out.nil? or out[2]!='{')
+	#puts out[2].inspect
+@di+=1 if dirty
+	mc_dest.delete(k) if dirty
 end
 end
+puts @di
 puts sizes.size.inspect
+exit
 v= sizes.values.sort
 puts v.first
 puts v.last

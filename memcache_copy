@@ -102,9 +102,12 @@ end
 STDERR.puts "uh-oh, have to iterate through all keys!"
 require 'memcache'
 mc=Memcache.new(:server => "#{$host}:#{$port}")
+mc_dest=Memcache.new(:server => "medusa.bay.ru:#{$port}")
 @sa=[]
 keys.each do |line|
-	out= mc.get(line.chomp, raw: true)
+	k = line.chomp
+	out= mc.get(k, raw: true)
+	mc_dest.set(k, out, raw: true) if out
 @sa << out.length if out
 end
 end
